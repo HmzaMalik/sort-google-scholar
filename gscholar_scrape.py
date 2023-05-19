@@ -43,8 +43,15 @@ def scrape_data(keyword, number_of_results, start_year, end_year, review_article
                 except:
                     data.append([title, abstract, citation_count, link, ajyp])
     df = pd.DataFrame(data, columns=headers)
+    try:
+        df["Citations"] = pd.to_numeric(df["Citations"], errors="coerce").astype("Int64") 
+        try:
+            df["Citations"] = df["Citations"].astype("Int64")
+        except:
+            pass       
+    except:
+            pass
     df.index.name = 'Rank'
-    df["Citations"]= df["Citations"].astype('Int64')       
     return df
 
 #%%
@@ -75,37 +82,69 @@ def extract_info(df, column_name):
                 journal = ""
                 publisher = parts[1]
         result.append({'Author': author, 'Journal': journal, 'Publisher': publisher, 'Year': (year)})
-    df = pd.DataFrame(result)
-    df["Year"] = pd.DatetimeIndex(df["Year"]).year.astype('Int64')
-    return df
+    df2 = pd.DataFrame(result)
 
+    try:
+        df2["Year"]=pd.to_numeric(df2["Year"], errors='coerce')
+        try:
+            df2["Year"]= df2["Year"].astype('Int64')
+        except:
+            pass       
+    except:
+            pass    
+    
+    df = pd.concat([df,df2],axis=1)
+
+    try:
+        df['Cit/Year']=(df['Citations']/(df['Year'].max() + 1 - df['Year'])).round(0).astype('Int64')
+    except:
+            pass
+    
+    df.index.name = 'Rank'
+    return df
 #%%
 kw= input("Enter keyword: ")
 num_of_results = input("Enter number of results (or press enter for default value 50): ") or 50
-start_year = input("Enter start year: ")
+if num_of_results != "":
+    while True:
+        try:
+            num_of_results = int(num_of_results)
+            break;
+        except:
+            num_of_results = input("invalid number of results. Please enter again: ")
+
+start_year = input("Enter start year (if any): ")
 if start_year != "":
-    int(start_year)
-end_year = input("Enter end year: ")
+    while True:
+        try:
+            start_year = int(start_year)
+            break;
+        except:
+            start_year = input("invalid start year. Please enter again: ")
+
+end_year = input("Enter end year (if any): ")
 if end_year != "":
-    int(end_year)
-review_articles = int(input("Enter 0 for non-review articles only or 1 for review articles only (or press enter for default of 0): ") or 0)
+    while True:
+        try:
+            end_year = int(end_year)
+            break;
+        except:
+            end_year = input("invalid  end year. Please enter again: ")
 
-df = scrape_data(kw, number_of_results=int(num_of_results), start_year=start_year, end_year=end_year, review_articles=review_articles)
+review_articles = input("Enter 1 for review articles only: ") or '0'
+if review_articles != "":
+    while review_articles not in ("0", "1"):
+        review_articles = input("invalid input. Please enter 0 (for default outcome) or 1 (for review articles only): ")
+    review_articles = int(review_articles)
 
-df.head()
+df = scrape_data(kw, number_of_results=num_of_results, start_year=start_year, end_year=end_year, review_articles=review_articles)
 
-#%%
 try:
-    df = pd.concat([df,extract_info(df,"AJYP")],axis=1)
+    df = extract_info(df[["Title","Citations","Abstract","Link","AJYP"]],"AJYP")
 except:
     pass
-df.head()
-#%%
-try:
-    df['Cit/Year']=(df['Citations']/(df['Year'].max() + 1 - df['Year'])).round(0).astype('Int64')
-except:
-    pass
-df.head()
+
+
 # %%
 try:
     ax = df['Year'].value_counts().sort_index().plot(kind='bar', figsize=(10, 6))
@@ -129,12 +168,11 @@ except:
     pass
 #%%
 try:
-    df = df.sort_values(by=input('Sort by preferred columns i.e.(Title, Author, Year or Cit/Year)\n Dafault is by "Citations"'), ascending=False)
+    df = df.sort_values(by=input('Sort by preferred columns i.e.(Title, Author, Year, Cit/Year, Journal or Publisher)\n Dafault is by "Citations"\n'), ascending=False)
 except Exception as e:
     print('Column name to be sorted not found. Sorting by the number of citations...')
     df = df.sort_values(by='Citations', ascending=False)
 
-#%%
 columns=["Author","Title","Citations","Year", 'Cit/Year',"Abstract","Link","Journal","Publisher","AJYP"]
 
 try:
